@@ -14,6 +14,7 @@ import numpy as np
 import PIL.Image as pil
 import matplotlib as mpl
 import matplotlib.cm as cm
+import cv2 
 
 import torch
 from torchvision import transforms, datasets
@@ -23,7 +24,7 @@ from monodepth2.layers import disp_to_depth
 from monodepth2.utils import download_model_if_doesnt_exist
 from monodepth2.evaluate_depth import STEREO_SCALE_FACTOR
 
-def run_image(image_path):
+def run_image(images):
     
     """Function to predict for a single image or folder of images
     """
@@ -65,29 +66,26 @@ def run_image(image_path):
     depth_decoder.eval()
 
     # FINDING INPUT IMAGES
-    if os.path.isfile(image_path):
-        # Only testing on a single image
-        paths = [image_path]
-        output_directory = os.path.dirname(image_path)
-    elif os.path.isdir(image_path):
-        # Searching folder for images
-        paths = glob.glob(os.path.join(image_path, '*.{}'.format("jpg")))
-        output_directory = image_path
-    else:
-        raise Exception("Can not find image_path: {}".format(image_path))
+    # if os.path.isfile(image_path):
+    #     # Only testing on a single image
+    #     paths = [image_path]
+    #     output_directory = os.path.dirname(image_path)
+    # elif os.path.isdir(image_path):
+    #     # Searching folder for images
+    #     paths = glob.glob(os.path.join(image_path, '*.{}'.format("jpg")))
+    #     output_directory = image_path
+    # else:
+    #     raise Exception("Can not find image_path: {}".format(image_path))
 
-    print("-> Predicting on {:d} test images".format(len(paths)))
+    # print("-> Predicting on {:d} test images".format(len(paths)))
 
     # PREDICTING ON EACH IMAGE IN TURN
+    results = []
     with torch.no_grad():
-        for idx, image_path in enumerate(paths):
-
-            if image_path.endswith("_disp.jpg"):
-                # don't try to predict disparity for a disparity image!
-                continue
-
-            # Load image and preprocess
-            input_image = pil.open(image_path).convert('RGB')
+        # Load image and preprocess
+        for image in images: 
+            img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            input_image = pil.fromarray(img)
             original_width, original_height = input_image.size
             input_image = input_image.resize((feed_width, feed_height), pil.LANCZOS)
             input_image = transforms.ToTensor()(input_image).unsqueeze(0)
@@ -104,12 +102,12 @@ def run_image(image_path):
             # # Saving numpy file
             # output_name = os.path.splitext(os.path.basename(image_path))[0]
             # scaled_disp, depth = disp_to_depth(disp, 0.1, 100)
-          
+            
             # name_dest_npy = os.path.join(output_directory, "{}_disp.npy".format(output_name))
             # np.save(name_dest_npy, scaled_disp.cpu().numpy())
 
             # # Saving colormapped depth image
-            # disp_resized_np = disp_resized.squeeze().cpu().numpy()
+            disp_resized_np = disp_resized.squeeze().cpu().numpy()
             # vmax = np.percentile(disp_resized_np, 95)
             # normalizer = mpl.colors.Normalize(vmin=disp_resized_np.min(), vmax=vmax)
             # mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
@@ -123,7 +121,7 @@ def run_image(image_path):
             #     idx + 1, len(paths)))
             # print("   - {}".format(name_dest_im))
             # print("   - {}".format(name_dest_npy))
-
+            results.append(disp_resized_np)
     print('-> Done!')
     
-    return disp_resized.squeeze().cpu().numpy()
+    return results
